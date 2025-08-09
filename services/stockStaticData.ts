@@ -1,0 +1,47 @@
+// This file contains a hardcoded list of Taiwan 50 and Taiwan Mid-Cap 100 stocks.
+// It serves as a fallback when the FinMind API for index constituents is unavailable.
+// Last updated: Mid-2024
+
+export const FALLBACK_STOCK_LIST: { id: string, name: string }[] = [
+    // Taiwan 50
+    { id: '1101', name: '台泥' }, { id: '1102', name: '亞泥' }, { id: '1216', name: '統一' },
+    { id: '1301', name: '台塑' }, { id: '1303', name: '南亞' }, { id: '1326', name: '台化' },
+    { id: '1402', name: '遠東新' }, { id: '1590', name: '亞德客-KY' }, { id: '2002', name: '中鋼' },
+    { id: '2207', name: '和泰車' }, { id: '2301', name: '光寶科' }, { id: '2303', name: '聯電' },
+    { id: '2308', name: '台達電' }, { id: '2317', name: '鴻海' }, { id: '2327', name: '國巨' },
+    { id: '2330', name: '台積電' }, { id: '2357', name: '華碩' }, { id: '2379', name: '瑞昱' },
+    { id: '2382', name: '廣達' }, { id: '2395', name: '研華' }, { id: '2408', name: '南亞科' },
+    { id: '2412', name: '中華電' }, { id: '2454', name: '聯發科' }, { id: '2603', name: '長榮' },
+    { id: '2609', name: '陽明' }, { id: '2615', name: '萬海' }, { id: '2801', name: '彰銀' },
+    { id: '2880', name: '華南金' }, { id: '2881', name: '富邦金' }, { id: '2882', name: '國泰金' },
+    { id: '2883', name: '開發金' }, { id: '2885', name: '元大金' }, { id: '2886', name: '兆豐金' },
+    { id: '2890', name: '永豐金' }, { id: '2891', name: '中信金' }, { id: '2892', name: '第一金' },
+    { id: '2912', name: '統一超' }, { id: '3008', name: '大立光' }, { id: '3034', name: '聯詠' },
+    { id: '3037', name: '欣興' }, { id: '3045', name: '台灣大' }, { id: '3711', name: '日月光投控' },
+    { id: '4904', name: '遠傳' }, { id: '4938', name: '和碩' }, { id: '5871', name: '中租-KY' },
+    { id: '5876', name: '上海商銀' }, { id: '5880', name: '合庫金' }, { id: '6505', name: '台塑化' },
+    { id: '9904', name: '寶成' }, { id: '9910', name: '豐泰' },
+    // Taiwan Mid-Cap 100 (Selection)
+    { id: '1476', name: '儒鴻' }, { id: '1504', name: '東元' }, { id: '1589', name: '永冠-KY' },
+    { id: '1605', name: '華新' }, { id: '1722', name: '台肥' }, { id: '1773', name: '勝一' },
+    { id: '1795', name: '美時' }, { id: '2006', name: '東和鋼鐵' }, { id: '2105', name: '正新' },
+    { id: '2201', name: '裕隆' }, { id: '2204', name: '中華' }, { id: '2206', name: '三陽工業' },
+    { id: '2344', name: '華邦電' }, { id: '2345', name: '智邦' }, { id: '2352', name: '佳世達' },
+    { id: '2353', name: '宏碁' }, { id: '2356', name: '英業達' }, { id: '2360', name: '致茂' },
+    { id: '2376', name: '技嘉' }, { id: '2377', name: '微星' }, { id: '2383', name: '台光電' },
+    { id: '2409', name: '友達' }, { id: '2449', name: '京元電子' }, { id: '2458', name: '義隆' },
+    { id: '2474', name: '可成' }, { id: '2542', name: '興富發' }, { id: '2606', name: '裕民' },
+    { id: '2610', name: '華航' }, { id: '2618', name: '長榮航' }, { id: '2884', name: '玉山金' },
+    { id: '2887', name: '台新金' }, { id: '2888', name: '新光金' }, { id: '3017', name: '奇鋐' },
+    { id: '3036', name: '文曄' }, { id: '3044', name: '健鼎' }, { id: '3231', name: '緯創' },
+    { id: '3293', name: '鈊象' }, { id: '3376', name: '新日興' }, { id: '3443', name: '創意' },
+    { id: '3481', name: '群創' }, { id: '3533', name: '嘉澤' }, { id: '3596', name: '智易' },
+    { id: '3661', name: '世芯-KY' }, { id: '3673', name: 'TPK-KY' }, { id: '3682', name: '亞太電' },
+    { id: '3693', name: '營邦' }, { id: '4958', name: '臻鼎-KY' }, { id: '5269', name: '祥碩' },
+    { id: '5347', name: '世界' }, { id: '5483', name: '中美晶' }, { id: '6176', name: '瑞儀' },
+    { id: '6239', name: '力成' }, { id: '6269', name: '台郡' }, { id: '6271', name: '同欣電' },
+    { id: '6285', name: '啟碁' }, { id: '6415', name: '矽力-KY' }, { id: '6456', name: 'GIS-KY' },
+    { id: '6526', name: '達發' }, { id: '6669', name: '緯穎' }, { id: '8046', name: '南電' },
+    { id: '8105', name: '凌巨' }, { id: '8210', name: '勤誠' }, { id: '8454', name: '富邦媒' },
+    { id: '9921', name: '巨大' }, { id: '9938', name: '百和' }, { id: '9945', name: '潤泰新' },
+];
