@@ -20,17 +20,17 @@ exports.handler = async function (event) {
     let fetchOptions = { method: 'GET', headers: {} };
 
     switch (source) {
-      case 'twse':
-        if (!queryParams.endpoint) {
+      case 'twse': {
+        const { endpoint, ...restOfTwseParams } = queryParams;
+        if (!endpoint) {
           throw new Error('TWSE endpoint is required');
         }
-        const twseEndpoint = queryParams.endpoint;
-        delete queryParams.endpoint; // Remove endpoint from params to be passed to TWSE
-        const twseParams = new URLSearchParams(queryParams);
-        targetUrl = `${TWSE_BASE_URL}/exchangeReport/${twseEndpoint}?${twseParams.toString()}`;
+        const twseParams = new URLSearchParams(restOfTwseParams);
+        targetUrl = `${TWSE_BASE_URL}/exchangeReport/${endpoint}?${twseParams.toString()}`;
         break;
-
-      case 'finmind':
+      }
+      
+      case 'finmind': {
         if (!VITE_FINMIND_API_TOKEN) {
           throw new Error("FinMind API token is not configured on the server.");
         }
@@ -38,18 +38,17 @@ exports.handler = async function (event) {
         finmindParams.set('token', VITE_FINMIND_API_TOKEN);
         targetUrl = `https://api.finmindtrade.com/api/v4/data?${finmindParams.toString()}`;
         break;
+      }
       
-      case 'newsapi':
+      case 'newsapi': {
         if (!VITE_NEWS_API_KEY) {
             throw new Error("News API key is not configured on the server.");
         }
-        // remove 'source' from queryParams before passing to newsapi
-        // Note: 'source' is already removed by destructuring, but this is safe
-        delete queryParams.source;
         const newsParams = new URLSearchParams(queryParams);
         targetUrl = `https://newsapi.org/v2/everything?${newsParams.toString()}`;
         fetchOptions.headers = { 'X-Api-Key': VITE_NEWS_API_KEY };
         break;
+      }
 
       default:
         throw new Error('Invalid or missing data source specified');

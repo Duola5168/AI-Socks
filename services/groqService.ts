@@ -1,6 +1,7 @@
 import { ScoredStock, TradeHistory, DebateReport, NewsSentimentReport, AIStrategyAnalysis, MarketHealth, StrategySettings } from '../types';
 import { getCriteriaText } from './utils';
 import { TWSE_API_ENDPOINTS } from './twseApiEndpoints';
+import { FINMIND_API_ENDPOINTS } from './finmindApiEndpoints';
 
 // Helper to format the API endpoints list for the AI prompt
 const twseApiReference = Object.entries(TWSE_API_ENDPOINTS)
@@ -8,6 +9,13 @@ const twseApiReference = Object.entries(TWSE_API_ENDPOINTS)
         `${category}:\n${endpoints.map(e => `- ${e.endpoint}: ${e.description}`).join('\n')}`
     )
     .join('\n\n');
+
+const finmindApiReference = Object.entries(FINMIND_API_ENDPOINTS)
+    .map(([category, datasets]) =>
+        `${category}:\n${datasets.map(d => `- ${d.dataset}: ${d.description}`).join('\n')}`
+    )
+    .join('\n\n');
+
 
 // Generic function to get a structured JSON report from Groq
 const getGroqJSONReport = async <T,>(apiKey: string, userPrompt: string, systemPrompt: string): Promise<T> => {
@@ -64,8 +72,13 @@ export const getGroqConAnalysis = async (apiKey: string, scoredStock: ScoredStoc
 
     const systemPrompt = `你是一位謹慎且具批判性的“反方”金融分析師。你的任務是專注於找出目標股票的**所有潛在風險和缺陷**。請從基本面、技術面、籌碼動能等角度進行分析，並為每個面向進行量化評分。分數越低代表風險越高。你的分析必須完全基於數據，並嚴格以結構化的 JSON 格式返回。
 
-你可用的台灣證券交易所 (TWSE) OpenAPI 數據點參考如下，請在分析時納入考量：
-${twseApiReference}`;
+你可用的數據點參考如下，請在分析時納入考量：
+
+**台灣證券交易所 (TWSE) OpenAPI:**
+${twseApiReference}
+
+**FinMind API:**
+${finmindApiReference}`;
 
     const userPrompt = `
       ${newsContext}
@@ -99,8 +112,13 @@ export const getGroqStrategyAnalysis = async (apiKey: string, settings: Strategy
 
     const systemPrompt = `你是一位持懷疑態度且注重風險的投資策略顧問。你的任務是從批判性的角度分析使用者提供的策略設定，結合當前市場狀況和歷史交易數據，找出潛在的弱點並提供優化建議。你的回覆必須嚴格遵循指定的 JSON 物件格式。
 
-你可用的台灣證券交易所 (TWSE) OpenAPI 數據點參考如下，請在分析時納入考量：
-${twseApiReference}`;
+你可用的數據點參考如下，請在分析時納入考量：
+
+**台灣證券交易所 (TWSE) OpenAPI:**
+${twseApiReference}
+
+**FinMind API:**
+${finmindApiReference}`;
 
     const historySummary = tradeHistory.slice(0, 5).map(t => {
         const outcome = t.profit > 0 ? '獲利' : '虧損';

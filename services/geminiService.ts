@@ -3,11 +3,18 @@ import { ScoredStock, TradeHistory, AIStockReport, StockCategory, MarketHealth, 
 import { getCriteriaText } from './utils';
 import { config } from './config';
 import { TWSE_API_ENDPOINTS } from './twseApiEndpoints';
+import { FINMIND_API_ENDPOINTS } from './finmindApiEndpoints';
 
 // Helper to format the API endpoints list for the AI prompt
 const twseApiReference = Object.entries(TWSE_API_ENDPOINTS)
     .map(([category, endpoints]) => 
         `${category}:\n${endpoints.map(e => `- ${e.endpoint}: ${e.description}`).join('\n')}`
+    )
+    .join('\n\n');
+
+const finmindApiReference = Object.entries(FINMIND_API_ENDPOINTS)
+    .map(([category, datasets]) => 
+        `${category}:\n${datasets.map(d => `- ${d.dataset}: ${d.description}`).join('\n')}`
     )
     .join('\n\n');
 
@@ -66,8 +73,13 @@ export const getGeminiProAnalysis = async (scoredStock: ScoredStock, newsReport?
 
     const systemInstruction = `你是一位樂觀但理性的“正方”金融分析師。你的任務是專注於找出目標股票的**所有優勢和潛力**。請從基本面、技術面、籌碼動能等角度進行分析，並為每個面向進行量化評分。你的分析必須完全基於數據，並以結構化的 JSON 格式返回。
 
-你可用的台灣證券交易所 (TWSE) OpenAPI 數據點參考如下，請在分析時納入考量：
-${twseApiReference}`;
+你可用的數據點參考如下，請在分析時納入考量：
+
+**台灣證券交易所 (TWSE) OpenAPI:**
+${twseApiReference}
+
+**FinMind API:**
+${finmindApiReference}`;
 
     const prompt = `
       ${newsContext}
@@ -121,8 +133,13 @@ export const getGeminiFinalDecision = async (proAnalysis: DebateReport, conAnaly
 
     const systemInstruction = `你是一位資深的金融投資總監。你的任務是審閱兩位下屬分析師（正方 Gemini，反方 Groq）的報告，並結合獨立的新聞輿情分析，做出最終的、權威的投資決策。你的決策應綜合所有觀點，並以客戶易於理解的方式呈現。你的回覆必須是結構化的 JSON 格式。
 
-你可用的台灣證券交易所 (TWSE) OpenAPI 數據點參考如下，請在分析時納入考量：
-${twseApiReference}`;
+你可用的數據點參考如下，請在分析時納入考量：
+
+**台灣證券交易所 (TWSE) OpenAPI:**
+${twseApiReference}
+
+**FinMind API:**
+${finmindApiReference}`;
     
     const finalDecisionSchema = {
         type: Type.OBJECT,
@@ -270,8 +287,13 @@ export const getAIStockReport = async (scoredStock: Omit<ScoredStock, 'aiReport'
       我的交易策略是短線操作，通常在週一進場，並期望在週五根據當週表現決定是否出場或續抱。請基於此**一週**的交易框架進行分析。
       你的結論必須嚴格按照指定的 JSON Schema 格式返回。
 
-你可用的台灣證券交易所 (TWSE) OpenAPI 數據點參考如下，請在分析時納入考量：
-${twseApiReference}`;
+你可用的數據點參考如下，請在分析時納入考量：
+
+**台灣證券交易所 (TWSE) OpenAPI:**
+${twseApiReference}
+
+**FinMind API:**
+${finmindApiReference}`;
 
     const prompt = `
       ${tradeUnitContext}
