@@ -215,8 +215,22 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
     else onProgress(`警告: 無法獲取 BWIBBU_ALL。 ${bwibbuResult.reason}`);
 
     const stockDayAvgMap = new Map();
-    if (stockDayAvgResult.status === 'fulfilled') stockDayAvgResult.value.forEach(s => stockDayAvgMap.set(s['Code'], { avgVolume: parseInt(s['MonthlyAverageTradeVolume']?.replace(/,/g, '')) }));
-    else onProgress(`警告: 無法獲取 STOCK_DAY_AVG_ALL。 ${stockDayAvgResult.reason}`);
+    if (stockDayAvgResult.status === 'fulfilled') {
+        const latestAverages = new Map();
+        stockDayAvgResult.value.forEach(s => {
+            const code = s['Code'];
+            const date = s['Date']; // YYYYMM format
+            if (!latestAverages.has(code) || date > latestAverages.get(code).date) {
+                latestAverages.set(code, {
+                    date: date,
+                    avgVolume: parseInt(s['MonthlyAverageTradeVolume']?.replace(/,/g, ''))
+                });
+            }
+        });
+        latestAverages.forEach((value, key) => {
+            stockDayAvgMap.set(key, { avgVolume: value.avgVolume });
+        });
+    } else onProgress(`警告: 無法獲取 STOCK_DAY_AVG_ALL。 ${stockDayAvgResult.reason}`);
     
     const quarterlyEpsMap = new Map();
     if (quarterlyEpsResult.status === 'fulfilled') {
@@ -291,7 +305,8 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
         // #4. Latest Quarter EPS
         if (!isNaN(basicInfo.shares) && basicInfo.shares > 0 && quarterlyProfit !== undefined && !isNaN(quarterlyProfit)) {
             effectiveItems++;
-            const eps = quarterlyProfit / (basicInfo.shares / 10);
+            // Profit is in thousands of NTD, shares are in individual shares.
+            const eps = (quarterlyProfit * 1000) / basicInfo.shares;
             if (eps > 3) totalScore += 3; else if (eps >= 1) totalScore += 2; else if (eps > 0) totalScore += 1;
         }
 
