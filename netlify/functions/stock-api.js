@@ -24,7 +24,10 @@ exports.handler = async function (event) {
         if (!queryParams.endpoint) {
           throw new Error('TWSE endpoint is required');
         }
-        targetUrl = `${TWSE_BASE_URL}/exchangeReport/${queryParams.endpoint}`;
+        const twseEndpoint = queryParams.endpoint;
+        delete queryParams.endpoint; // Remove endpoint from params to be passed to TWSE
+        const twseParams = new URLSearchParams(queryParams);
+        targetUrl = `${TWSE_BASE_URL}/exchangeReport/${twseEndpoint}?${twseParams.toString()}`;
         break;
 
       case 'finmind':
@@ -41,6 +44,7 @@ exports.handler = async function (event) {
             throw new Error("News API key is not configured on the server.");
         }
         // remove 'source' from queryParams before passing to newsapi
+        // Note: 'source' is already removed by destructuring, but this is safe
         delete queryParams.source;
         const newsParams = new URLSearchParams(queryParams);
         targetUrl = `https://newsapi.org/v2/everything?${newsParams.toString()}`;
