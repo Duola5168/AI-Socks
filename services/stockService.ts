@@ -90,11 +90,12 @@ async function _executeFinMindFetch(dataset: string, params: Record<string, stri
  * @param onProgress - A callback to report progress.
  * @returns The data from the TWSE Open API.
  */
-async function _executeOpenApiFetch(endpoint: string, onProgress: (message: string) => void): Promise<any[]> {
+async function _executeOpenApiFetch(endpoint: string, onProgress: (message: string) => void, params?: Record<string, string>): Promise<any[]> {
     onProgress(`查詢中: ${endpoint}`);
     const urlParams = new URLSearchParams({
         source: 'twse',
         endpoint,
+        ...params,
     });
     const url = `/.netlify/functions/stock-api?${urlParams.toString()}`;
     const response = await fetch(url);
@@ -125,7 +126,7 @@ export async function updateAndCacheAllStockList(onProgress: (message: string) =
 
     // --- Fetch Listed Stocks (TWSE) ---
     try {
-        const listedData = await _executeOpenApiFetch('t187ap03_L', onProgress);
+        const listedData = await _executeOpenApiFetch('t187ap03_L', onProgress, { '$top': '10000' });
         const transformed = listedData
             .map(s => ({ id: s['公司代號'], name: s['公司簡稱'] }))
             .filter(s => s.id && s.name);
@@ -190,6 +191,7 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
     await sleep(50);
 
     onProgress("正在併發獲取評分所需 OpenAPI 數據...");
+    const openApiParams = { '$top': '10000' };
     const [
         bwibbuResult,
         stockDayAvgResult,
@@ -199,13 +201,13 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
         dailyResult,
         basicInfoResult,
     ] = await Promise.allSettled([
-        _executeOpenApiFetch('BWIBBU_ALL', msg => onProgress(`- (殖利率/PBR) ${msg}`)), // Item 1
-        _executeOpenApiFetch('STOCK_DAY_AVG_ALL', msg => onProgress(`- (月均價量) ${msg}`)), // Item 2
-        _executeOpenApiFetch('t187ap17_L', msg => onProgress(`- (季度EPS) ${msg}`)), // Item 4
-        _executeOpenApiFetch('t187ap05_L', msg => onProgress(`- (月營收) ${msg}`)), // Item 5
-        _executeOpenApiFetch('FMSRFK_ALL', msg => onProgress(`- (月成交資訊) ${msg}`)), // Item 6
-        _executeOpenApiFetch('t187ap14_L', msg => onProgress(`- (每日行情) ${msg}`)), // Item 1, 7
-        _executeOpenApiFetch('t187ap03_L', msg => onProgress(`- (基本資料) ${msg}`)), // Item 4, 8
+        _executeOpenApiFetch('BWIBBU_ALL', msg => onProgress(`- (殖利率/PBR) ${msg}`), openApiParams),
+        _executeOpenApiFetch('STOCK_DAY_AVG_ALL', msg => onProgress(`- (月均價量) ${msg}`), openApiParams),
+        _executeOpenApiFetch('t187ap17_L', msg => onProgress(`- (季度EPS) ${msg}`), openApiParams),
+        _executeOpenApiFetch('t187ap05_L', msg => onProgress(`- (月營收) ${msg}`), openApiParams),
+        _executeOpenApiFetch('FMSRFK_ALL', msg => onProgress(`- (月成交資訊) ${msg}`), openApiParams),
+        _executeOpenApiFetch('t187ap14_L', msg => onProgress(`- (每日行情) ${msg}`), openApiParams),
+        _executeOpenApiFetch('t187ap03_L', msg => onProgress(`- (基本資料) ${msg}`), openApiParams),
     ]);
     
     onProgress("數據獲取完成，正在處理與建立查詢表...");
@@ -293,10 +295,8 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
         const daily = dailyMap.get(stock.id);
         const basicInfo = basicInfoMap.get(stock.id);
 
-        if (!daily || !basicInfo) continue;
-
-        // #1. EPS (from PE)
-        if (bwibbu && !isNaN(bwibbu.pe) && bwibbu.pe > 0 && !isNaN(daily.close)) {
+        // #1. EPS (from PE) - depends on daily data
+        if (daily && bwibbu && !isNaN(bwibbu.pe) && bwibbu.pe > 0 && !isNaN(daily.close)) {
             effectiveItems++;
             const eps = daily.close / bwibbu.pe;
             if (eps > 5) totalScore += 3; else if (eps >= 3) totalScore += 2; else if (eps >= 1) totalScore += 1;
@@ -335,21 +335,23 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
             }
         }
 
-        // #7. Daily Price Change Stability
-        if (!isNaN(daily.changePercent)) {
+        // #7. Daily Price Change Stability - depends on daily data
+        if (daily && !isNaN(daily.changePercent)) {
             effectiveItems++;
             const change = Math.abs(daily.changePercent);
             if (change < 2) totalScore += 3; else if (change <= 5) totalScore += 2; else if (change <= 10) totalScore += 1;
         }
 
-        // #8. Basic Info Completeness
-        effectiveItems++;
-        let completenessScore = 0;
-        if (basicInfo.industry) completenessScore++;
-        if (basicInfo.foundDate) completenessScore++;
-        if (basicInfo.capital) completenessScore++;
-        totalScore += completenessScore;
-
+        // #8. Basic Info Completeness - depends on basic info
+        if (basicInfo) {
+            effectiveItems++;
+            let completenessScore = 0;
+            if (basicInfo.industry) completenessScore++;
+            if (basicInfo.foundDate) completenessScore++;
+            if (basicInfo.capital) completenessScore++;
+            totalScore += completenessScore;
+        }
+        
         if (effectiveItems > 0) {
             const averageScore = (totalScore / effectiveItems) * 10 / 3; // Normalize to 10-point scale
             if (averageScore >= MIN_AVG_SCORE_THRESHOLD) {
