@@ -238,10 +238,17 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
         quarterlyEpsResult.value.forEach(s => {
             const code = s['公司代號'];
             if (!latestFins.has(code) || s['出表日期'] > latestFins.get(code).date) {
-                latestFins.set(code, { date: s['出表日期'], profit: parseInt(s['本期綜合損益總額']?.replace(/,/g, '')) });
+                latestFins.set(code, { 
+                    date: s['出表日期'], 
+                    eps: parseFloat(s['基本每股盈餘'])
+                });
             }
         });
-        latestFins.forEach((value, key) => quarterlyEpsMap.set(key, value.profit));
+        latestFins.forEach((value, key) => {
+            if (!isNaN(value.eps)) {
+                quarterlyEpsMap.set(key, value.eps);
+            }
+        });
     } else onProgress(`警告: 無法獲取 t187ap17_L。 ${quarterlyEpsResult.reason}`);
 
     const monthlyRevMap = new Map();
@@ -280,7 +287,7 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
 
         const bwibbu = bwibbuMap.get(stock.id);
         const stockDayAvg = stockDayAvgMap.get(stock.id);
-        const quarterlyProfit = quarterlyEpsMap.get(stock.id);
+        const quarterlyEps = quarterlyEpsMap.get(stock.id);
         const monthlyRev = monthlyRevMap.get(stock.id);
         const monthlyVols = fmsrfkMap.get(stock.id);
         const daily = dailyMap.get(stock.id);
@@ -302,11 +309,10 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
             if (sheets > 1000) totalScore += 3; else if (sheets >= 500) totalScore += 2; else if (sheets >= 100) totalScore += 1;
         }
 
-        // #4. Latest Quarter EPS
-        if (!isNaN(basicInfo.shares) && basicInfo.shares > 0 && quarterlyProfit !== undefined && !isNaN(quarterlyProfit)) {
+        // #4. Latest Quarter EPS (Direct from API)
+        if (quarterlyEps !== undefined && !isNaN(quarterlyEps)) {
             effectiveItems++;
-            // Profit is in thousands of NTD, shares are in individual shares.
-            const eps = (quarterlyProfit * 1000) / basicInfo.shares;
+            const eps = quarterlyEps;
             if (eps > 3) totalScore += 3; else if (eps >= 1) totalScore += 2; else if (eps > 0) totalScore += 1;
         }
 
