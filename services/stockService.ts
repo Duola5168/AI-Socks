@@ -258,7 +258,7 @@ export const runOpenApiPreFilter = async (onProgress: (message: string, isFinal?
     await sleep(50);
 
     const preFilteredList: (Partial<StockData> & { id: string, name: string, score: number })[] = [];
-    const MIN_AVG_SCORE_THRESHOLD = 6;
+    const MIN_AVG_SCORE_THRESHOLD = 0;
 
     for (const stock of fullList) {
         let totalScore = 0;
