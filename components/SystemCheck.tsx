@@ -1,13 +1,21 @@
+
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { CheckCircleIcon, XCircleIcon, PuzzlePieceIcon } from './icons';
 import { config, IS_FIREBASE_CONFIGURED, IS_GEMINI_CONFIGURED, IS_GROQ_CONFIGURED, IS_NEWS_CONFIGURED, IS_GITHUB_CONFIGURED } from '../services/config';
+import * as githubService from '../services/githubService';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
 interface ServiceStatus {
   status: Status;
   message: string;
+}
+
+interface ModelTestResult {
+    status: Status;
+    response: string;
 }
 
 const checkTwseProxy = async (): Promise<string> => {
@@ -140,10 +148,11 @@ const checkMopsCrawler = async (): Promise<string> => {
 const checkGitHubModels = async (): Promise<string> => {
     if (!IS_GITHUB_CONFIGURED) return "GitHub API Key 未在後端設定。"; // This check is mostly for completeness
     try {
-        const response = await fetch('/.netlify/functions/stock-api?source=github_models&model=copilot-chat', {
+        const response = await fetch('/.netlify/functions/stock-api?source=github_models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: 'hello' }],
                 stream: false,
             }),
@@ -154,7 +163,7 @@ const checkGitHubModels = async (): Promise<string> => {
             throw new Error(errorData.error || `HTTP 錯誤! 狀態: ${response.status}`);
         }
         await response.json();
-        return "GitHub Models (copilot-chat) 連接成功。";
+        return "GitHub Models API (gpt-4o-mini) 連接成功。";
     } catch (e: any) {
         console.error("GitHub Models check failed:", e);
         return `連接失敗: ${e.message}`;
@@ -167,25 +176,26 @@ const createServiceStatusFromResult = (message: string): ServiceStatus => ({
     message,
 });
 
+const StatusIcon: React.FC<{ status: Status }> = ({ status }) => {
+    switch (status) {
+        case 'loading':
+            return <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>;
+        case 'success':
+            return <CheckCircleIcon className="w-6 h-6 text-green-400" />;
+        case 'error':
+            return <XCircleIcon className="w-6 h-6 text-red-400" />;
+        default:
+            return <div className="w-5 h-5 bg-gray-600 rounded-full"></div>;
+    }
+};
+
+
 const StatusRow: React.FC<{ name: string; status: Status; message: string }> = ({ name, status, message }) => {
-    const getStatusUI = () => {
-        switch (status) {
-            case 'loading':
-                return <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>;
-            case 'success':
-                return <CheckCircleIcon className="w-6 h-6 text-green-400" />;
-            case 'error':
-                return <XCircleIcon className="w-6 h-6 text-red-400" />;
-            default:
-                return <div className="w-5 h-5 bg-gray-600 rounded-full"></div>;
-        }
-    };
-    
     return (
         <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg">
             <span className="font-semibold text-gray-300">{name}</span>
             <div className="flex items-center gap-2 text-sm text-right">
-                {getStatusUI()}
+                <StatusIcon status={status} />
                 <span className={`min-w-0 break-words ${status === 'error' ? 'text-red-300' : 'text-gray-400'}`}>{message}</span>
             </div>
         </div>
@@ -209,6 +219,10 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
         github: getInitialStatus('GitHub', IS_GITHUB_CONFIGURED),
     });
     const [isChecking, setIsChecking] = useState(false);
+    
+    const [modelTestResults, setModelTestResults] = useState<Record<string, ModelTestResult>>({});
+    const [isTestingModels, setIsTestingModels] = useState(false);
+
 
     const handleRunChecks = async () => {
         setIsChecking(true);
@@ -252,10 +266,53 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
         setIsChecking(false);
     };
 
+    const handleModelResponseTest = async () => {
+        if (!IS_GITHUB_CONFIGURED) {
+            setModelTestResults({ 'GitHub Models': { status: 'error', response: 'GitHub API Key 未在後端設定。' } });
+            return;
+        }
+
+        setIsTestingModels(true);
+        const modelsToTest = [
+            { id: 'gpt-4o-mini', name: 'GitHub (Copilot)' },
+            { id: 'gpt-4o', name: 'GitHub (OpenAI)' },
+            { id: 'DeepSeek-R1', name: 'GitHub (DeepSeek)' },
+            { id: 'grok-3', name: 'xAI (Grok)' },
+        ];
+        
+        const initialResults: Record<string, ModelTestResult> = {};
+        modelsToTest.forEach(m => {
+            initialResults[m.name] = { status: 'loading', response: '正在請求...' };
+        });
+        setModelTestResults(initialResults);
+        
+        const testPrompt: { role: 'user' | 'system', content: string }[] = [{ role: 'user', content: '你是由哪個組織或公司訓練的？' }];
+
+        const results = await Promise.allSettled(
+            modelsToTest.map(model => 
+                githubService.getGitHubModelTestResponse(model.id, testPrompt)
+            )
+        );
+
+        const finalResults: Record<string, ModelTestResult> = {};
+        results.forEach((res, index) => {
+            const modelName = modelsToTest[index].name;
+            if (res.status === 'fulfilled') {
+                finalResults[modelName] = { status: 'success', response: res.value };
+            } else {
+                finalResults[modelName] = { status: 'error', response: res.reason.message };
+            }
+        });
+        
+        setModelTestResults(finalResults);
+        setIsTestingModels(false);
+    };
+
     const firebaseStatus: Status = isFirebaseConfigured ? (isUserLoggedIn ? 'success' : 'error') : 'error';
     const firebaseMessage = isFirebaseConfigured ? (isUserLoggedIn ? '已登入並同步' : '未登入，資料僅儲存於本機') : 'Firebase 未設定';
 
     return (
+    <>
         <div className="bg-gray-800/50 rounded-xl shadow-lg border border-gray-700 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-cyan-400 border-b border-gray-600 pb-2">系統與服務狀態</h3>
             <p className="text-sm text-gray-400">
@@ -282,5 +339,39 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
                 </button>
             </div>
         </div>
+
+        <div className="bg-gray-800/50 rounded-xl shadow-lg border border-gray-700 p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-cyan-400 border-b border-gray-600 pb-2">AI 分析師模型回應測試</h3>
+            <p className="text-sm text-gray-400">
+                驗證 GitHub Models API 是否能正確地將請求路由到指定的底層模型。點擊按鈕後，系統會向每個模型發送一個相同的問題，並顯示其獨特的回應。
+            </p>
+            <div className="pt-2">
+                <button
+                    onClick={handleModelResponseTest}
+                    disabled={isTestingModels || !IS_GITHUB_CONFIGURED}
+                    title={!IS_GITHUB_CONFIGURED ? "請先設定 GitHub API Key" : "執行模型指紋測試"}
+                    className="w-full px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                >
+                    {isTestingModels ? '測試中...' : '執行模型指紋測試'}
+                </button>
+            </div>
+
+            {Object.keys(modelTestResults).length > 0 && (
+                <div className="mt-4 space-y-3">
+                    {Object.entries(modelTestResults).map(([modelName, result]) => (
+                        <div key={modelName} className="p-3 bg-gray-900/50 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-gray-300">{modelName}</span>
+                                <StatusIcon status={result.status} />
+                            </div>
+                            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono bg-gray-900 p-2 rounded-md max-h-40 overflow-y-auto">
+                                {result.response}
+                            </pre>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    </>
     );
 };
