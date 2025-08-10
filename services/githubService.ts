@@ -1,30 +1,28 @@
 import { ScoredStock, DebateReport, NewsSentimentReport } from '../types';
 import { getCriteriaText } from './utils';
 
-const _callGitHubModel = async (model: string, messages: { role: string; content: string }[]): Promise<string> => {
+const _callGitHubModel = async (model: string, messages: { role: string; content: string }[], requestJson: boolean = true): Promise<any> => {
     try {
+        const body: any = {
+            model: model, 
+            messages: messages,
+            stream: false,
+        };
+        if (requestJson) {
+            body.response_format = { type: 'json_object' };
+        }
+        
         const response = await fetch(`/.netlify/functions/stock-api?source=github_models`, {
             method: 'POST',
-            body: JSON.stringify({
-                model: model, 
-                messages: messages,
-                stream: false,
-                response_format: { type: 'json_object' }, // Request JSON output for analysis
-            }),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Unknown GitHub Models API error (${response.status})`);
+            throw new Error(errorData.error?.message || `Unknown GitHub Models API error (${response.status})`);
         }
 
-        const result = await response.json();
-        const content = result.choices[0]?.message?.content;
-        if (!content) {
-            throw new Error("GitHub Models API 回應格式不符預期，缺少內容。");
-        }
-        
-        return content;
+        return await response.json();
 
     } catch (error) {
         console.error(`Error calling GitHub Model (${model}) via proxy:`, error);
@@ -72,44 +70,46 @@ const buildStockAnalysisMessages = (scoredStock: ScoredStock, newsReport?: NewsS
 
 const getStockAnalysisReport = async (model: string, stock: ScoredStock, news?: NewsSentimentReport): Promise<DebateReport> => {
     const messages = buildStockAnalysisMessages(stock, news);
-    const content = await _callGitHubModel(model, messages);
+    const result = await _callGitHubModel(model, messages, true);
+    const content = result.choices[0]?.message?.content;
+     if (!content) {
+        throw new Error("GitHub Models API 回應格式不符預期，缺少內容。");
+    }
     return JSON.parse(content) as DebateReport;
 }
 
 export const getGitHubCopilotAnalysis = (stock: ScoredStock, news?: NewsSentimentReport) => 
-    getStockAnalysisReport("gpt-4o-mini", stock, news);
+    getStockAnalysisReport("openai/gpt-4o-mini", stock, news);
 
 export const getGitHubOpenAIAnalysis = (stock: ScoredStock, news?: NewsSentimentReport) => 
-    getStockAnalysisReport("gpt-4o", stock, news);
+    getStockAnalysisReport("openai/gpt-4o", stock, news);
 
 export const getGitHubDeepSeekAnalysis = (stock: ScoredStock, news?: NewsSentimentReport) => 
-    getStockAnalysisReport("DeepSeek-R1", stock, news);
+    getStockAnalysisReport("deepseek/deepseek-chat", stock, news);
 
 export const getGitHubXAIAnalysis = (stock: ScoredStock, news?: NewsSentimentReport) =>
-    getStockAnalysisReport("grok-3", stock, news);
+    getStockAnalysisReport("xai/grok-3", stock, news);
 
 export const getGitHubModelTestResponse = async (model: string, messages: { role: 'user' | 'system', content: string }[]): Promise<string> => {
     try {
-        const response = await fetch(`/.netlify/functions/stock-api?source=github_models`, {
-            method: 'POST',
-            body: JSON.stringify({
-                model: model, 
-                messages: messages,
-                stream: false,
-                // Do not request JSON for this text-based test
-            }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Unknown GitHub Models API error (${response.status})`);
-        }
-
-        const result = await response.json();
+        const result = await _callGitHubModel(model, messages, false); // Do not request JSON for this text-based test
         return result.choices[0]?.message?.content || "模型未回傳任何內容。";
-
     } catch (error) {
         console.error(`Error testing GitHub Model (${model}):`, error);
         throw new Error(`GitHub (${model}) 測試失敗: ${error instanceof Error ? error.message : String(error)}`);
+    }
+};
+
+export const fetchGitHubModelCatalog = async (): Promise<{id: string}[]> => {
+    try {
+        const response = await fetch(`/.netlify/functions/stock-api?source=github_catalog`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `Unknown GitHub Models API error (${response.status})`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Error fetching GitHub Model Catalog via proxy:`, error);
+        throw new Error(`獲取 GitHub 模型目錄失敗: ${error instanceof Error ? error.message : String(error)}`);
     }
 };

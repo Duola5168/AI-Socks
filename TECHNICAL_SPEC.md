@@ -1,126 +1,82 @@
-# 技術規格書 (Technical Specification)
+# 技術規格書 - AI 智慧投資平台
 
-本文檔旨在詳細說明「AI 智慧投資平台」專案的技術架構、API 設計、數據流、安全規範及未來發展建議。
+本文檔概述了 AI 智慧投資平台的技術架構、核心組件和設計決策。
 
-## 1. 專案架構 (Project Architecture)
+## 1. 系統架構
 
-本專案採用現代化的前後端分離架構，旨在實現高效開發、易於維護和良好擴展性。
+本應用程式採用現代化的 Jamstack 架構，具備高度的可擴展性和安全性。
 
-### 1.1 前端 (Frontend)
+- **前端 (Client-Side):** 一個使用 React 和 Vite 建置的單頁應用程式 (SPA)，負責所有 UI 渲染和使用者互動。
+- **後端代理 (Serverless Functions):** 利用 Netlify Functions 作為一個安全的代理層，用於處理對外部 API（如 FinMind、NewsAPI、GitHub Models）的請求。這樣做可以安全地隱藏 API 金鑰，避免其暴露在前端。
+- **資料庫:**
+    - **本地快取:** 使用 IndexedDB 在瀏覽器中儲存大量的市場數據，實現離線存取和快速載入。
+    - **雲端同步:** 使用 Google Firebase (Firestore) 進行使用者認證和個人化資料（投資組合、交易歷史、設定）的雲端儲存與同步。
+- **AI 服務:** 直接從前端客戶端呼叫 Google Gemini 和 Groq API，而 GitHub Models API 則透過 Netlify 代理呼叫。
 
-*   **框架 (Framework):** React (v19) with TypeScript
-*   **建置工具 (Build Tool):** Vite
-*   **主要功能:**
-    *   提供用戶互動介面，包括投資組合追蹤、股票篩選、個股詳情查看等。
-    *   透過呼叫後端 API (Netlify Functions) 獲取及展示市場數據。
-    *   使用 Firebase 進行用戶認證和部分數據快取。
-    *   所有業務邏輯和狀態管理都封裝在 `services` 和 `hooks` 目錄中，實現了關注點分離。
+## 2. 前端技術棧
 
-### 1.2 後端 (Backend - Netlify Functions)
+- **框架:** React 19 (with Hooks)
+- **建置工具:** Vite
+- **語言:** TypeScript
+- **樣式:** Tailwind CSS
+- **圖表:** Lightweight Charts
+- **狀態管理:** React Context API 和自定義 Hooks (`useUserData`, `useMarketData`, `useScreener` 等)。
 
-*   **平台 (Platform):** Netlify Functions
-*   **語言 (Language):** JavaScript (Node.js)
-*   **核心功能:**
-    *   作為一個 API 代理閘道 (API Gateway)，統一處理所有對外部數據源的請求。
-    *   安全地管理和使用 API 金鑰 (例如 FinMind API Token)，避免金鑰洩漏到前端。
-    *   解決前端直接請求外部 API 時遇到的跨域 (CORS) 問題。
-    *   未來可在後端實現更集中、更高效的快取策略與請求頻率控制。
+## 3. 核心功能模組
 
-### 1.3 數據流 (Data Flow)
+### 3.1. 數據管理 (`hooks/useMarketData.ts`, `services/databaseService.ts`)
+- **數據來源:** 透過 `databaseService` 從 Firebase Firestore 同步全市場數據。
+- **本地儲存:** 將同步的數據儲存在 IndexedDB 中，以供應用程式快速讀取。
+- **狀態鉤子:** `useMarketData` 負責管理從本地資料庫載入的市場數據狀態。
 
-1.  **用戶操作:** 用戶在前端 UI 進行操作 (例如：請求更新股價)。
-2.  **前端服務呼叫:** React 組件觸發 `services/stockService.ts` 中的函式。
-3.  **API 請求:** `stockService` 不再直接請求外部 API，而是向內部的 Netlify Function (`/.netlify/functions/stock-api`) 發送請求。
-4.  **後端代理:** `stock-api` Function 接收到請求，根據 `source` 參數判斷數據源 (FinMind 或 TWSE)。
-5.  **外部 API 請求:** Netlify Function 帶上儲存在後端環境變數中的 API 金鑰，向目標外部 API (FinMind 或 TWSE) 發送請求。
-6.  **數據回傳:** 外部 API 回傳數據給 Netlify Function。
-7.  **回應前端:** Netlify Function 將數據回傳給前端的 `stockService`。
-8.  **UI 更新:** `stockService` 將數據處理後，更新到前端的狀態 (State)，React 自動重新渲染 UI。
+### 3.2. 使用者資料 (`hooks/useUserData.ts`, `services/firestoreService.ts`)
+- **認證:** 使用 Firebase Authentication (Google 登入)。
+- **資料模型:** `PortfolioHolding`, `TradeHistory` 等。
+- **同步邏輯:** `useUserData` 鉤子處理本地 LocalStorage 與 Firestore 之間的資料同步，確保登入後資料一致。
+- **即時更新:** 在交易時段，每分鐘自動更新投資組合的價格和警示。
 
----
+### 3.3. AI 選股引擎 (`hooks/useScreener.ts`, `services/geminiService.ts`)
+- **多階段篩選:**
+    1.  **AI 初篩:** `geminiService.getAITopStocks` 接收全市場靜態數據，根據指定策略篩選出 Top 20 候選名單。
+    2.  **即時數據獲取:** `stockService.fetchRealtimeDataForTopStocks` 為候選名單獲取詳細的 K 線與營收數據。
+    3.  **動能排序:** 在前端根據即時數據計算動能分數，進行最終排序。
+    4.  **深度分析:** `geminiService.getAIStockReport` 為 Top 10 結果生成詳細的 AI 分析報告。
 
-## 2. API 設計規格 (API Design Specification)
+### 3.4. AI 協同分析 (`services/collaborativeAnalysisService.ts`)
+- **分析師角色:**
+    - **Gemini:** 扮演樂觀的「正方」分析師。
+    - **Groq (Llama 3):** 扮演謹慎的「反方」分析師。
+    - **GitHub Models:** 扮演從技術開發者視角分析的專家。
+    - **Gemini (CIO):** 扮演投資總監，綜合所有報告做出最終決策。
+- **工作流程:**
+    1.  (可選) 獲取並分析新聞輿情。
+    2.  所有啟用的分析師並行執行分析。
+    3.  投資總監模型接收所有報告，生成最終決策。
 
-我們設計了一個統一的 API 入口點來處理所有股票相關的數據請求。
+## 4. 後端代理 (`netlify/functions/stock-api.js`)
 
-*   **根路徑 (Root Path):** `/.netlify/functions/stock-api`
-*   **HTTP 方法 (Method):** `GET`
+- **目的:** 安全地管理和使用伺服器端的 API 金鑰。
+- **路由:** 透過 `source` 查詢參數來決定要代理的目標 API。
+- **支援的服務:**
+    - `twse`: 臺灣證券交易所 OpenAPI
+    - `finmind`: FinMind API
+    - `newsapi`: NewsAPI
+    - `github_models`: GitHub Models Inference API
+    - `github_catalog`: GitHub Models Catalog API
+    - `goodinfo`, `mops`: 模擬爬蟲連線測試。
+- **合規性:** 對於爬蟲目標，代理會遵循 `robots.txt` 的 `Crawl-delay` 指示，並增加隨機延遲，以模仿人類行為並尊重目標伺服器。
 
-### 2.1 路由與參數 (Routes & Parameters)
+## 5. 環境變數
 
-透過 `source` 查詢參數來決定要存取的數據源。
+應用程式依賴以下 `.env` 檔案中的環境變數：
 
-#### **Source: `twse`**
+- `VITE_API_KEY`: Google Gemini API 金鑰
+- `VITE_GROQ_API_KEY`: Groq API 金鑰
+- `VITE_NEWS_API_KEY`: NewsAPI 金鑰
+- `VITE_FIREBASE_*`: Firebase 專案設定
+- `VITE_FIREBASE_FUNCTIONS_URL`: Firebase Cloud Function 的觸發 URL
 
-*   **用途:** 獲取台灣證券交易所 (TWSE) 的公開數據。
-*   **範例:** `/.netlify/functions/stock-api?source=twse&endpoint=t187ap03_L`
-*   **參數:**
-    *   `source` (必要): `twse`
-    *   `endpoint` (必要): TWSE OpenData 的端點名稱，例如 `t187ap03_L` (上市股票清單) 或 `t187ap14_L` (個股日成交資訊)。
+**伺服器端 (Netlify):**
 
-#### **Source: `finmind`**
-
-*   **用途:** 獲取 FinMind 提供的詳細金融數據。
-*   **範例:** `/.netlify/functions/stock-api?source=finmind&dataset=TaiwanStockPrice&data_id=2330&start_date=2024-01-01`
-*   **參數:**
-    *   `source` (必要): `finmind`
-    *   `dataset` (必要): FinMind API 定義的資料集名稱，例如 `TaiwanStockPrice`。
-    *   `data_id` (可選): 股票代碼，例如 `2330`。
-    *   `start_date` (可選): 查詢的開始日期。
-
-### 2.2 回傳格式 (Response Format)
-
-*   **成功 (Success):**
-    *   `statusCode`: `200`
-    *   `headers`: `{ 'Content-Type': 'application/json' }`
-    *   `body`: 從外部 API 獲取的原始 JSON 數據。
-*   **失敗 (Failure):**
-    *   `statusCode`: `400` (用戶端請求錯誤) 或 `500` (伺服器端錯誤)。
-    *   `headers`: `{ 'Content-Type': 'application/json' }`
-    *   `body`: `{ "error": "錯誤訊息描述" }`
-
-### 2.3 台灣證券交易所 API 端點參考 (TWSE API Endpoint Reference)
-為了提升 AI 分析的深度與廣度，應用程式內部維護了一份完整的台灣證券交易所 OpenAPI 端點清單。
-
-*   **檔案位置:** `services/twseApiEndpoints.ts`
-*   **用途:**
-    *   此檔案將所有可用的官方數據 API (如重大訊息、公司治理資訊、處置股票等) 進行了結構化分類。
-    *   在呼叫 AI 模型 (Gemini) 進行分析時，這份清單會作為額外的上下文 (Context) 提供給 AI。
-    *   這使得 AI 能夠知道有哪些潛在的官方數據可以納入考量，從而提出更全面、更具情境感知能力的分析與建議。
-
----
-
-## 3. 資料庫或狀態管理 (Database & State Management)
-
-*   **前端狀態管理:** 主要透過 React Hooks (`useState`, `useEffect`) 和自定義 Hooks (`hooks/`) 來管理組件狀態和業務邏輯。
-*   **客戶端快取:**
-    *   `localStorage`: 用於儲存全市場股票清單、篩選後的候選池等，避免用戶每次訪問都需重新下載。
-    *   `Firebase Firestore`: 如 `fetchWithCache` 函式所示，專案利用 Firestore 作為一個用戶級別的雲端快取，用來儲存個股的歷史數據 (如 K 線、營收)，並設定了 TTL (Time-To-Live) 來確保數據的時效性。
-
----
-
-## 4. 安全性與性能優化建議 (Security & Performance Recommendations)
-
-### 4.1 安全性 (Security)
-
-*   **API 金鑰管理:** **(已完成)** `finmindApiToken` 已從前端移除，並應儲存在 Netlify 的環境變數中。這是本次重構最重要的安全提升。
-*   **保護 API 端點:** 雖然目前是內部使用，未來若需對外開放，可考慮為 Netlify Function 增加認證機制 (例如，檢查 Firebase Auth 的 token)。
-*   **依賴套件審核:** 定期執行 `npm audit` 來檢查並修復已知的前後端套件漏洞。
-
-### 4.2 性能優化 (Performance)
-
-*   **後端共享快取:** 目前的 Firestore 快取是基於 `userId` 的，這意味著每個用戶都有自己的快取。對於公開數據 (如個股 K 線)，未來可以在 Netlify Function 層級實現一個**共享快取** (例如，使用 Netlify 的 `Cache-Control` 標頭或一個外部 Redis 服務)，讓所有用戶共享同一份快取數據，大幅減少對外部 API 的請求。
-*   **前端資源優化:**
-    *   **程式碼分割 (Code Splitting):** React 和 Vite 已預設支持。可以檢查是否有特別大的組件或頁面可以手動進行延遲加載 (Lazy Loading)。
-    *   **圖片優化:** 確保專案中使用的所有圖片都經過壓縮。
-*   **API 請求最小化:** 前端應確保只有在必要時才發起 API 請求，避免在組件的重複渲染中觸發不必要的數據獲取。
-
----
-
-## 5. 未來可擴充功能建議 (Future Scalability)
-
-*   **進階選股策略:** 目前的篩選邏輯在前端，未來可以將其移至後端，並允許用戶自定義、保存和分享更複雜的選股策略 (例如，結合多個技術指標和財務數據)。
-*   **用戶個人化設定:** 允許用戶儲存個人化的介面設定、自選股清單分組、甚至是綁定自己的券商帳戶 (需處理更高級別的安全性)。
-*   **數據可視化增強:** 引入更專業的圖表庫 (如 TradingView Lightweight Charts)，提供更豐富的技術分析工具和繪圖功能。
-*   **後端任務排程:** 對於需要定期執行的任務 (例如，每日收盤後更新所有股票的基礎數據)，可以使用 Netlify 的排程函式 (Scheduled Functions) 來自動化執行，並將結果存入快取或資料庫中。
-*   **WebSocket 即時股價:** 引入 WebSocket 服務，實現股價的即時推送，提升用戶體驗。
+- `VITE_FINMIND_API_TOKEN`: FinMind API 金鑰
+- `VITE_GITHUB_API_KEY`: GitHub API 金鑰

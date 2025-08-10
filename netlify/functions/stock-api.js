@@ -119,15 +119,27 @@ exports.handler = async function (event) {
             throw new Error("GitHub API Key (VITE_GITHUB_API_KEY) is not configured on the server.");
         }
         
-        targetUrl = `https://api.github.com/v1/chat/completions`;
+        targetUrl = `https://models.github.ai/inference/chat/completions`; // Corrected URL
         fetchOptions.method = 'POST';
         fetchOptions.headers = {
             'Authorization': `Bearer ${VITE_GITHUB_API_KEY}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'X-GitHub-Api-Version': '2022-11-28',
         };
         fetchOptions.body = event.body; // Forward the request body from the client
+        break;
+      }
+
+      case 'github_catalog': {
+        if (!VITE_GITHUB_API_KEY) {
+            throw new Error("GitHub API Key (VITE_GITHUB_API_KEY) is not configured on the server.");
+        }
+        targetUrl = `https://models.github.ai/catalog/models`; // New catalog endpoint
+        fetchOptions.method = 'GET';
+        fetchOptions.headers = {
+            'Authorization': `Bearer ${VITE_GITHUB_API_KEY}`,
+            'Accept': 'application/json',
+        };
         break;
       }
       

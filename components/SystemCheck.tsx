@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { CheckCircleIcon, XCircleIcon, PuzzlePieceIcon } from './icons';
@@ -13,9 +11,10 @@ interface ServiceStatus {
   message: string;
 }
 
-interface ModelTestResult {
+interface DynamicModelTestResult {
+    id: string;
     status: Status;
-    response: string;
+    message: string;
 }
 
 const checkTwseProxy = async (): Promise<string> => {
@@ -152,18 +151,24 @@ const checkGitHubModels = async (): Promise<string> => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'gpt-4o-mini',
+                model: 'openai/gpt-4o-mini', // Use a valid, common model for the connection test
                 messages: [{ role: 'user', content: 'hello' }],
                 stream: false,
+                max_tokens: 1,
             }),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP 錯誤! 狀態: ${response.status}`);
+            const errorMessage = errorData.error?.message || `HTTP 錯誤! 狀態: ${response.status}`;
+            // Provide a hint for the common permission error
+            if (errorMessage.includes("authentication failed")) {
+                return "連接失敗: 認證失敗。請檢查您的 PAT 是否包含 'models: read' 權限。";
+            }
+            throw new Error(errorMessage);
         }
         await response.json();
-        return "GitHub Models API (gpt-4o-mini) 連接成功。";
+        return "GitHub Models API (openai/gpt-4o-mini) 連接成功。";
     } catch (e: any) {
         console.error("GitHub Models check failed:", e);
         return `連接失敗: ${e.message}`;
@@ -220,7 +225,8 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
     });
     const [isChecking, setIsChecking] = useState(false);
     
-    const [modelTestResults, setModelTestResults] = useState<Record<string, ModelTestResult>>({});
+    const [dynamicTestLog, setDynamicTestLog] = useState<string[]>([]);
+    const [modelTestResults, setModelTestResults] = useState<DynamicModelTestResult[]>([]);
     const [isTestingModels, setIsTestingModels] = useState(false);
 
 
@@ -266,46 +272,61 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
         setIsChecking(false);
     };
 
-    const handleModelResponseTest = async () => {
+    const handleDynamicModelTest = async () => {
         if (!IS_GITHUB_CONFIGURED) {
-            setModelTestResults({ 'GitHub Models': { status: 'error', response: 'GitHub API Key 未在後端設定。' } });
+            setDynamicTestLog(["GitHub API Key 未在後端設定。"]);
             return;
         }
 
         setIsTestingModels(true);
-        const modelsToTest = [
-            { id: 'gpt-4o-mini', name: 'GitHub (Copilot)' },
-            { id: 'gpt-4o', name: 'GitHub (OpenAI)' },
-            { id: 'DeepSeek-R1', name: 'GitHub (DeepSeek)' },
-            { id: 'grok-3', name: 'xAI (Grok)' },
-        ];
+        setDynamicTestLog([]);
+        setModelTestResults([]);
         
-        const initialResults: Record<string, ModelTestResult> = {};
-        modelsToTest.forEach(m => {
-            initialResults[m.name] = { status: 'loading', response: '正在請求...' };
-        });
-        setModelTestResults(initialResults);
-        
-        const testPrompt: { role: 'user' | 'system', content: string }[] = [{ role: 'user', content: '你是由哪個組織或公司訓練的？' }];
+        const addLog = (msg: string) => setDynamicTestLog(prev => [...prev, msg]);
 
-        const results = await Promise.allSettled(
-            modelsToTest.map(model => 
-                githubService.getGitHubModelTestResponse(model.id, testPrompt)
-            )
-        );
-
-        const finalResults: Record<string, ModelTestResult> = {};
-        results.forEach((res, index) => {
-            const modelName = modelsToTest[index].name;
-            if (res.status === 'fulfilled') {
-                finalResults[modelName] = { status: 'success', response: res.value };
-            } else {
-                finalResults[modelName] = { status: 'error', response: res.reason.message };
+        try {
+            addLog("🔄 正在從目錄獲取可用的模型列表...");
+            const catalog = await githubService.fetchGitHubModelCatalog();
+            
+            if (!catalog || catalog.length === 0) {
+                addLog("❌ 未找到任何可用模型。請檢查您的 PAT 權限是否包含 'models: read'。");
+                setIsTestingModels(false);
+                return;
             }
-        });
-        
-        setModelTestResults(finalResults);
-        setIsTestingModels(false);
+
+            addLog(`✅ 成功獲取目錄，找到 ${catalog.length} 個模型。`);
+            
+            const initialResults = catalog.map(model => ({
+                id: model.id,
+                status: 'idle' as Status,
+                message: '等待測試'
+            }));
+            setModelTestResults(initialResults);
+    
+            const testPrompt: { role: 'user' | 'system'; content: string }[] = [{ role: 'user', content: `請回覆 "模型 MODEL_ID 正常運作"` }];
+    
+            for (let i = 0; i < catalog.length; i++) {
+                const model = catalog[i];
+                
+                setModelTestResults(prev => prev.map(r => r.id === model.id ? { ...r, status: 'loading', message: '測試中...' } : r));
+    
+                try {
+                    const promptWithId = testPrompt.map(p => ({...p, content: p.content.replace('MODEL_ID', model.id)}));
+                    const response = await githubService.getGitHubModelTestResponse(model.id, promptWithId);
+                    setModelTestResults(prev => prev.map(r => r.id === model.id ? { ...r, status: 'success', message: response } : r));
+                } catch (error: any) {
+                    setModelTestResults(prev => prev.map(r => r.id === model.id ? { ...r, status: 'error', message: error.message } : r));
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            addLog("🏁 所有模型測試完成。");
+    
+        } catch (error: any) {
+            addLog(`💥 獲取模型目錄時發生嚴重錯誤: ${error.message}`);
+        } finally {
+            setIsTestingModels(false);
+        }
     };
 
     const firebaseStatus: Status = isFirebaseConfigured ? (isUserLoggedIn ? 'success' : 'error') : 'error';
@@ -341,31 +362,38 @@ export const SystemCheck: React.FC<{ isFirebaseConfigured: boolean; isUserLogged
         </div>
 
         <div className="bg-gray-800/50 rounded-xl shadow-lg border border-gray-700 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-cyan-400 border-b border-gray-600 pb-2">AI 分析師模型回應測試</h3>
+            <h3 className="text-lg font-semibold text-cyan-400 border-b border-gray-600 pb-2">GitHub Models 可用性動態測試</h3>
             <p className="text-sm text-gray-400">
-                驗證 GitHub Models API 是否能正確地將請求路由到指定的底層模型。點擊按鈕後，系統會向每個模型發送一個相同的問題，並顯示其獨特的回應。
+                此功能會自動從 GitHub 官方 API 獲取您帳號所有可用的模型清單，然後逐一發送請求以驗證其可用性。這有助於確認您的 PAT (個人存取權杖) 設定正確且具備 `models: read` 權限。
             </p>
             <div className="pt-2">
                 <button
-                    onClick={handleModelResponseTest}
+                    onClick={handleDynamicModelTest}
                     disabled={isTestingModels || !IS_GITHUB_CONFIGURED}
-                    title={!IS_GITHUB_CONFIGURED ? "請先設定 GitHub API Key" : "執行模型指紋測試"}
+                    title={!IS_GITHUB_CONFIGURED ? "請先設定 GitHub API Key" : "執行可用性測試"}
                     className="w-full px-6 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-wait"
                 >
-                    {isTestingModels ? '測試中...' : '執行模型指紋測試'}
+                    {isTestingModels ? '測試中...' : '執行可用性動態測試'}
                 </button>
             </div>
 
-            {Object.keys(modelTestResults).length > 0 && (
-                <div className="mt-4 space-y-3">
-                    {Object.entries(modelTestResults).map(([modelName, result]) => (
-                        <div key={modelName} className="p-3 bg-gray-900/50 rounded-lg">
+            {(dynamicTestLog.length > 0 || modelTestResults.length > 0) && (
+                <div className="mt-4 space-y-3 max-h-[40rem] overflow-y-auto">
+                    {dynamicTestLog.length > 0 && (
+                        <div className="p-3 bg-gray-900/50 rounded-lg">
+                            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono bg-gray-900 p-2 rounded-md">
+                                {dynamicTestLog.join('\n')}
+                            </pre>
+                        </div>
+                    )}
+                    {modelTestResults.map((result) => (
+                        <div key={result.id} className="p-3 bg-gray-900/50 rounded-lg">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="font-semibold text-gray-300">{modelName}</span>
+                                <span className="font-semibold text-gray-300">{result.id}</span>
                                 <StatusIcon status={result.status} />
                             </div>
                             <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono bg-gray-900 p-2 rounded-md max-h-40 overflow-y-auto">
-                                {result.response}
+                                {result.message}
                             </pre>
                         </div>
                     ))}
