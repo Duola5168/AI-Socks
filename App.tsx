@@ -310,24 +310,17 @@ function App() {
                         isGeminiConfigured={IS_GEMINI_CONFIGURED}
                         settings={settings}
                     />
-
-                    {(statusLog.length > 0 || isBusy) && (
-                        <div className="my-6 p-4 bg-gray-200 dark:bg-gray-800/50 rounded-xl border border-gray-300 dark:border-gray-700">
-                            <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">篩選狀態日誌</h4>
-                            <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-mono bg-white dark:bg-gray-900 p-3 rounded-md max-h-48 overflow-y-auto">
-                            {statusLog.join('\n')}
-                            {isBusy && statusLog.length > 0 && '\n'}
-                            {isScreening && `正在篩選與分析中...`}
-                            </div>
-                        </div>
-                    )}
                     
-                    {isBusy && screenedStocks.length === 0 ? (
-                        <div className="flex justify-center items-center h-96 bg-gray-200 dark:bg-gray-800/30 rounded-xl">
-                        <div className="text-center">
-                            <div className="w-16 h-16 border-4 border-cyan-500 dark:border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                            <p className="text-cyan-600 dark:text-cyan-300">正在分析中...</p>
-                        </div>
+                    {isBusy ? (
+                        <div className="flex justify-center items-center h-96 bg-gray-800/30 rounded-xl">
+                            <div className="text-center p-4 w-full max-w-2xl">
+                                <div className="w-16 h-16 border-4 border-cyan-500 dark:border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                <p className="text-cyan-500 dark:text-cyan-300 text-lg font-semibold mb-3">AI 智慧選股引擎執行中</p>
+                                <div className="text-sm text-gray-400 whitespace-pre-wrap font-mono bg-gray-900/50 p-3 rounded-md max-h-48 overflow-y-auto text-left">
+                                    {statusLog.join('\n')}
+                                    {isScreening && <span className="animate-pulse">{`\n[${new Date().toLocaleTimeString()}] 正在等待 AI 回應...`}</span>}
+                                </div>
+                            </div>
                         </div>
                     ) : screenedStocks.length > 0 ? (
                         <div className="space-y-3">
