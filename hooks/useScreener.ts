@@ -51,12 +51,18 @@ export const useScreener = (
         setStatusLog([]); // Clear log for new run
         
         try {
+            // Pre-filter for efficiency before hitting the AI
+            const preFilteredData = allStaticStockData
+                .filter(s => s.tradeValue && s.tradeValue > 10_000_000)
+                .sort((a, b) => (b.tradeValue ?? 0) - (a.tradeValue ?? 0))
+                .slice(0, 300);
+
             // Stage 1: AI Screens Static Data for Top 20 Candidates
-            addLog(`階段 1: AI 正在從 ${allStaticStockData.length} 支股票中，根據您的策略進行篩選...`);
+            addLog(`階段 1: 從 ${allStaticStockData.length} 支股票中，預篩選成交最熱絡的 ${preFilteredData.length} 支股票...`);
             addLog(`選股提示詞: "${prompt}"`);
             if (!IS_GEMINI_CONFIGURED) throw new Error("Gemini API Key 未設定，無法執行 AI 初步篩選。");
             
-            const top20StockIds = await getAITopStocks(settings.analystPanel.geminiModel, allStaticStockData, prompt);
+            const top20StockIds = await getAITopStocks(settings.analystPanel.geminiModel, preFilteredData, prompt);
             addLog(`AI 初篩完成，找到 ${top20StockIds.length} 名候選者。`);
 
             if (top20StockIds.length === 0) {
