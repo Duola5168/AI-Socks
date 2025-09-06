@@ -78,7 +78,9 @@ export const getGroqConAnalysis = async (apiKey: string, model: string, scoredSt
 ${twseApiReference}
 
 **FinMind API:**
-${finmindApiReference}`;
+${finmindApiReference}
+
+Your response must be a single JSON object with the following keys: "overallStance", "candlestickPattern", "movingAverageAlignment", "technicalIndicators", "institutionalActivity", "fundamentalAssessment", "supportLevel", "resistanceLevel", "recommendedEntryZone", "recommendedExitConditions", "supplementaryAnalysis".`;
 
     const userPrompt = `
       ${newsContext}
@@ -92,10 +94,8 @@ ${finmindApiReference}`;
       **分析指令:**
       請扮演反方分析師，找出這支股票的風險與缺陷，並填寫一份完整的分析報告。你的整體立場應為 '看壞' 或 '中立'。
       `;
-      
-    const schemaDescription = `你必須嚴格地只用繁體中文回傳一個 JSON 物件，其結構必須符合：{"overallStance": "'看好' 或 '看壞' 或 '中立'", "candlestickPattern": "分析K線圖的型態並附上簡短解說，例如：'空頭吞噬 (強烈的看跌訊號，表示賣方力道湧現)'", "movingAverageAlignment": "字串", "technicalIndicators": "字串", "institutionalActivity": "字串", "fundamentalAssessment": "字串", "supportLevel": "字串", "resistanceLevel": "字串", "recommendedEntryZone": "字串", "recommendedExitConditions": "字串", "supplementaryAnalysis": "字串"}`;
 
-    return getGroqJSONReport<AnalystReport>(apiKey, model, userPrompt, `${systemPrompt}\n${schemaDescription}`);
+    return getGroqJSONReport<AnalystReport>(apiKey, model, userPrompt, systemPrompt);
 };
 
 export const getGroqStrategyAnalysis = async (apiKey: string, model: string, settings: StrategySettings, marketContext: MarketHealth, tradeHistory: TradeHistory[]): Promise<AIStrategyAnalysis> => {
@@ -111,7 +111,10 @@ export const getGroqStrategyAnalysis = async (apiKey: string, model: string, set
 ${twseApiReference}
 
 **FinMind API:**
-${finmindApiReference}`;
+${finmindApiReference}
+
+Your response must be a single JSON object with the following keys: "marketOutlook", "strategyCritique", and "recommendations" (which should be an array of objects, each with "parameter", "currentValue", "recommendedValue", and "reason" keys).`;
+    
 
     const historySummary = tradeHistory.slice(0, 5).map(t => {
         const outcome = t.profit > 0 ? '獲利' : '虧損';
@@ -136,8 +139,6 @@ ${finmindApiReference}`;
       2.  **strategyCritique**: 批判使用者目前的策略設定，在當前市場環境下可能有哪些盲點或風險。例如，在弱勢市場下，營收成長權重是否過高？(約 50-70 字)。
       3.  **recommendations**: 提供 2-3 個最關鍵的參數調整建議，以增強策略的防禦性或適應性。解釋調整原因，並提供建議值。
     `;
-
-    const schemaDescription = `你必須嚴格地只用繁體中文回傳一個 JSON 物件，其結構必須符合：{"marketOutlook": "字串", "strategyCritique": "字串", "recommendations": [{"parameter": "字串", "currentValue": "字串", "recommendedValue": "字串", "reason": "字串"}]}`;
     
-    return getGroqJSONReport<AIStrategyAnalysis>(apiKey, model, userPrompt, `${systemPrompt}\n${schemaDescription}`);
+    return getGroqJSONReport<AIStrategyAnalysis>(apiKey, model, userPrompt, systemPrompt);
 };
