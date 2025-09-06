@@ -66,12 +66,7 @@ export const getAITopStocks = async (model: string, allStaticData: PartialStockD
     if (!config.geminiApiKey) throw new Error("缺少 Gemini API 金鑰。");
     const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
 
-    const preFilteredData = allStaticData
-        .filter(s => s.tradeValue && s.tradeValue > 10_000_000)
-        .sort((a, b) => (b.tradeValue ?? 0) - (a.tradeValue ?? 0))
-        .slice(0, 300);
-
-    const dataSummary = preFilteredData.map(s => ({
+    const dataSummary = allStaticData.map(s => ({
         id: s.id,
         n: s.name,
         pe: s.peRatio,
