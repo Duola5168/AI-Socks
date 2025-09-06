@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 智慧投資平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // Enable class-based dark mode
+        theme: {
+          extend: {}
+        }
+      }
+    </script>
+    <style>
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.1",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react-dom/client": "https://esm.sh/react-dom@^19.1.1/client",
+    "@google/genai": "https://esm.sh/@google/genai@^1.12.0",
+    "firebase/": "https://esm.sh/firebase@^12.0.0/",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "vite": "https://esm.sh/vite@^7.1.1",
+    "@firebase/auth": "https://esm.sh/@firebase/auth@^1.11.0",
+    "@firebase/app": "https://esm.sh/@firebase/app@^0.14.1",
+    "@firebase/firestore": "https://esm.sh/@firebase/firestore@^4.9.0",
+    "node-fetch": "https://esm.sh/node-fetch@^3.3.2",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.56.1",
+    "lightweight-charts": "https://esm.sh/lightweight-charts@^4.1.6"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
