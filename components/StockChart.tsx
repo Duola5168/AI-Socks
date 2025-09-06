@@ -112,14 +112,23 @@ const StockChart: React.FC<StockChartProps> = ({ klineData, entryPrice }) => {
         });
         chartRef.current = chart;
         
+        // FIX: Cast to 'any' to bypass potential TypeScript type definition issues with lightweight-charts.
         candleSeriesRef.current = (chart as any).addCandlestickSeries({
             upColor: '#10b981', downColor: '#ef4444', borderDownColor: '#ef4444',
             borderUpColor: '#10b981', wickDownColor: '#ef4444', wickUpColor: '#10b981',
         });
+        // FIX: Cast to 'any' to bypass potential TypeScript type definition issues with lightweight-charts.
         ma5SeriesRef.current = (chart as any).addLineSeries({ color: 'cyan', lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
+        // FIX: Cast to 'any' to bypass potential TypeScript type definition issues with lightweight-charts.
         ma20SeriesRef.current = (chart as any).addLineSeries({ color: 'yellow', lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
 
-        const handleResize = () => chartContainerRef.current && chart.resize(chartContainerRef.current.clientWidth, 300);
+        const handleResize = () => {
+            if (chartContainerRef.current) {
+                chart.resize(chartContainerRef.current.clientWidth, 300);
+            }
+        };
+        // Use a timeout to ensure the container is rendered with its final size
+        setTimeout(handleResize, 0);
         window.addEventListener('resize', handleResize);
 
         return () => {
@@ -136,7 +145,7 @@ const StockChart: React.FC<StockChartProps> = ({ klineData, entryPrice }) => {
                 time: d.time as Time, open: d.open, high: d.high, low: d.low, close: d.close
             }));
             candleSeriesRef.current.setData(candleData);
-            // FIX: Cast to 'any' to bypass a potential type definition issue for 'setMarkers'.
+            // FIX: Cast to 'any' to bypass potential TypeScript type definition issues with lightweight-charts.
             (candleSeriesRef.current as any).setMarkers(signalMarkers);
         }
         if (ma5SeriesRef.current) ma5SeriesRef.current.setData(ma5Data);
